@@ -1,0 +1,7 @@
+# Data preparation, evaluation and aggregate plots for Python 3.12.
+# Install the GPU training stack separately as described in the reproduction guide.
+numpy==1.26.4
+pandas==2.2.3
+nibabel==5.3.3
+openpyxl==3.1.5
+matplotlib==3.10.8

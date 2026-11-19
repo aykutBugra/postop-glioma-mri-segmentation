@@ -1,0 +1,50 @@
+# Recorded reference settings. This file documents the experiment.
+# The preparation CLIs read flags and the notebooks set nnU-Net environment variables.
+dataset:
+  id: 901
+  name: Phase1GliomaBaseline
+  images: data/raw
+  metadata: data/metadata
+  prepared: outputs/phase1_nnunet_dataset
+  file_ending: .nii.gz
+  channels: [T1c, T1n, T2w, T2-FLAIR]
+  labels:
+    0: background
+    1: NETC
+    2: SNFH
+    3: ET
+    4: RC
+split:
+  seed: 42
+  grouping: patient
+  ratios: [0.70, 0.15, 0.15]
+  train_cases: 414
+  validation_cases: 96
+  reserved_cases: 84
+model:
+  configuration: 3d_fullres
+  network: PlainConvUNet
+  widths: [32, 64, 128, 256, 320, 320]
+  spacing_mm: [1.0, 1.0, 1.0]
+  normalization: masked_channel_zscore
+  patch_size: [128, 128, 128]
+  batch_size: 2
+training:
+  fold: 0
+  epochs: 1000
+  iterations_per_epoch: 250
+  online_validation_iterations_per_epoch: 50
+  foreground_oversampling_setting: 0.33
+  loss: soft Dice + cross-entropy
+  deep_supervision: true
+  optimizer: SGD
+  initial_lr: 0.01
+  momentum: 0.99
+  nesterov: true
+  weight_decay: 0.00003
+  scheduler: PolyLR
+  historical_planning_pool: all_594_converted_cases
+evaluation:
+  split: fold_0_validation
+  checkpoint: checkpoint_best.pth
+  mean_foreground_dice: 0.9153
