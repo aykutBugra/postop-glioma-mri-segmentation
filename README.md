@@ -4,9 +4,19 @@ A TEKNOFEST 2026 research project for segmenting four postoperative glioma MRI l
 
 [Read in Turkish](docs/README.tr.md) · [Reproduction guide](docs/reproducibility.md) · [Experiment notes](docs/experiments.md)
 
+## Development Status
+
+This project remains a research prototype. The segmentation baseline reached full-volume validation, and the longitudinal workflow reached early prototyping.
+
+| Completed | Remaining |
+| --- | --- |
+| Dataset preparation and patient-grouped splits | An independent final test and external-cohort validation |
+| Binary and multiclass U-Net experiments and nnU-Net v2 Phase 1F training | Complete the remaining experimental improvements and verify a reproducible GPU environment |
+| Fold-0 validation on 96 timepoints, class-level error analysis and the Experiment A comparison | Complete the longitudinal follow-up system, validate clinical use and deploy to production |
+
 ## Reference result
 
-**Phase 1F reached 0.9153 mean foreground Dice across 96 validation timepoints from 31 patients in fold 0.** Foreground combines all four labels, including the resection cavity. The study measures agreement with reference masks on this validation fold. Independent test performance and clinical performance remain unestablished.
+**Phase 1F reached 0.9153 mean foreground Dice across 96 validation timepoints from 31 patients in fold 0.** Foreground combines all four labels, including the resection cavity. The study measures agreement with reference masks on this validation fold.
 
 ![Phase 1F Dice by class, showing lower and more variable scores for NETC and RC](results/figures/class-dice.png)
 
@@ -62,20 +72,24 @@ The right panel shows the mean of four logged per-label **online pseudo Dice** v
 
 ## Experiment development
 
-The early prototype measured longitudinal volumes from existing masks. A binary 3D U-Net automated total-volume extraction. A custom multiclass U-Net added tissue-level measurements, and case-level analysis revealed persistent NETC and RC errors. Phase 1F established a standard nnU-Net v2 baseline. Experiment A kept the architecture and loss fixed and changed class selection for foreground patches. Experiment B added weighted cross-entropy and was stopped after epoch index 209. Its record contains training logs and no completed full-volume validation run. [Experiment notes and recorded decisions](docs/experiments.md)
+The early prototype measured longitudinal volumes from existing masks. A binary 3D U-Net automated total-volume extraction. A custom multiclass U-Net added tissue-level measurements, and case-level analysis revealed persistent NETC and RC errors. Phase 1F established a standard nnU-Net v2 baseline. Experiment A kept the architecture and loss fixed and changed class selection for foreground patches. [Experiment notes and recorded decisions](docs/experiments.md)
 
 ![Experiment A Dice changes. Foreground improved slightly while NETC and RC declined](results/figures/experiment-a-delta.png)
 
 **Phase 1F remains the reference.** Experiment A gained 0.19 percentage points of foreground Dice, while NETC and RC lost 1.40 and 2.29 points. The run also exceeded the configured 2.35 mL foreground volume MAE threshold. In the corrected sub-millilitre analysis, mean Dice for NETC fell from 0.4544 to 0.4415 across 23 reference-positive cases. RC improved from 0.3479 to 0.3607 across 24. The gains for small RC regions did not meet the experiment’s overall acceptance criteria.
 
-## Engineering decisions
+## Development Environment & Challenges
 
-| Problem | Response |
-| --- | --- |
-| Repeated scans can leak patient information across splits | Normalize patient identifiers and assign all of a patient’s timepoints together. The recorded manifests had zero patient overlap. |
-| Patch metrics can obscure full-volume errors | Run a separate full-volume inference pass, track both union and class Dice, and calculate volume error in mL. |
-| Large regions dominate the aggregate score | Report per-label distributions and separate small reference-positive regions from absent cases. |
-| Cloud notebooks and experiment archives are difficult to reuse | Preserve the source, parameterize the project path, strip saved notebook output, and derive the public figures from aggregate CSVs. |
+Model training used Google Colab. The Phase 1F record identifies an **NVIDIA A100 40 GB** and PyTorch `2.10.0+cu128`. Full-resolution 3D MRI made training compute-intensive even with `128³` patches and a batch size of two. After an interruption, Phase 1F resumed from a checkpoint at epoch index 13 and completed its 1,000-epoch run about 18.6 hours after resuming. The log does not identify the cause of the interruption. Colab session duration, GPU availability and memory capacity are planning constraints for repeat runs. [Recorded settings](configs/phase1f.reference.yaml) · [Reproduction guide](docs/reproducibility.md)
+
+Experiment B added weighted cross-entropy and stopped after epoch index 209. The experiment record cites weak, inconsistent improvement in the target classes relative to the compute still required. B has online training logs and no completed full-volume evaluation. The original nnU-Net package version was not recorded, and the GPU workflow has yet to be verified in a fresh environment. [Experiment notes](docs/experiments.md)
+
+| Problem | Engineering response and outcome | Remaining gap |
+| --- | --- | --- |
+| Repeated scans can leak patient information across splits | Normalized patient IDs, grouped all scans per patient and verified zero patient overlap in the recorded manifests. | Fit the plan on training data only and evaluate on an independent cohort. |
+| Long 3D runs can be interrupted | Resumed Phase 1F from a saved checkpoint and completed training. | Verify a repeatable GPU environment with sustained compute for further runs. |
+| Patch metrics and large regions can obscure class errors | Added full-volume inference, foreground and per-label Dice, volume error in mL, and separate analyses for small and absent regions. | Improve NETC and RC on small regions. |
+| Cloud notebooks and experiment archives are difficult to reuse | Parameterized notebook paths, cleared saved outputs and derived the public figures from aggregate CSVs. | End-to-end GPU reproduction is still open. |
 
 ## Setup and use
 
@@ -89,14 +103,13 @@ python -m src.eval.eval_contract --format text
 python scripts/plot_results.py
 ```
 
-Windows PowerShell activation is `.venv\Scripts\Activate.ps1`. Local MRI processing requires a separately downloaded copy of the TCIA dataset. Training and checkpoint inference require a compatible PyTorch/nnU-Net v2 environment. The recorded notebooks use Linux tooling, and the original nnU-Net version was not recorded. No model weights or patient files are included. The reproduction guide provides the local layout, preparation commands, and notebook entry points. [Reproduction guide](docs/reproducibility.md)
+Windows PowerShell activation is `.venv\Scripts\Activate.ps1`. Local MRI processing requires a separately downloaded copy of the TCIA dataset. Training and checkpoint inference require a compatible PyTorch/nnU-Net v2 environment with Linux tooling. No model weights or patient files are included. The reproduction guide provides the local layout, preparation commands, and notebook entry points. [Reproduction guide](docs/reproducibility.md)
 
-## Limitations
+## Project Limitations & Future Work
 
-- The reported results cover fold-0 validation on one retrospective cohort. The historical nnU-Net fingerprint and plan used all 594 converted cases, including the reserved split. The optimizer’s recorded split excludes those cases. The 30 reserved patients also appeared in the earlier custom-model test partition.
-- Small NETC and RC regions remain difficult to delineate. A high foreground Dice can still coincide with large errors in component volume. Several follow-up timepoints can come from the same patient.
-- The current model outputs voxel labels and class volumes. Treatment response prediction, tumour grading, and diagnosis are outside this evaluation.
-- A fresh GPU training run and checkpoint inference are not part of this release verification. [Reproduction and verification status](docs/reproducibility.md)
+- **Evaluation.** The results come from fold-0 validation on one retrospective cohort. The historical nnU-Net fingerprint and plan used all 594 converted cases, including the reserved split. The optimizer's recorded split excluded those cases, and the 30 reserved patients had also appeared in the earlier custom-model test partition. A final evaluation needs training-only planning, a previously unused test cohort, and validation on an external dataset.
+- **Segmentation.** Small NETC and RC regions remain difficult to delineate. High foreground Dice can coincide with large class-volume errors. Experiment A did not meet the acceptance criteria, and B stopped before full-volume evaluation. Further ablations need a version-pinned GPU environment and reliable long-run compute.
+- **Follow-up.** The current pipeline produces voxel labels and class volumes. Tumour grading, diagnosis and treatment response are outside this evaluation. The earlier timeline and forecasting prototypes give a starting point for a longitudinal system. Integrating serial scans and measuring how segmentation errors affect volume trends are open research tasks. [Experiment notes](docs/experiments.md) · [Reproduction and verification status](docs/reproducibility.md)
 
 ## Acknowledgments and references
 
